@@ -15,25 +15,32 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import com.google.android.gms.appindexing.Action;
+import com.google.android.gms.appindexing.AppIndex;
+import com.google.android.gms.appindexing.Thing;
+import com.google.android.gms.common.api.GoogleApiClient;
+
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.StreamCorruptedException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.PriorityQueue;
 
 /**
  * GroupMessengerActivity is the main Activity for the assignment.
- * 
- * @author stevko
  *
+ * @author stevko
  */
 public class GroupMessengerActivity extends Activity {
 
@@ -43,18 +50,38 @@ public class GroupMessengerActivity extends Activity {
     static final String REMOTE_PORT2 = "11116";
     static final String REMOTE_PORT3 = "11120";
     static final String REMOTE_PORT4 = "11124";
-    int max=0;
+    int max = 0;
     String emID = "";
-    ArrayList<String> portList = new ArrayList<String>(Arrays.asList(REMOTE_PORT0,REMOTE_PORT1,REMOTE_PORT2,REMOTE_PORT3,REMOTE_PORT4));
+    ArrayList<String> portList = new ArrayList<String>(Arrays.asList(REMOTE_PORT0, REMOTE_PORT1, REMOTE_PORT2, REMOTE_PORT3, REMOTE_PORT4));
     PriorityQueue<Entry> queue = new PriorityQueue<Entry>();
-    HashMap<String,Entry> map  = new HashMap<String, Entry>();
+    HashMap<String, Entry> map = new HashMap<String, Entry>();
     PriorityQueue<Entry> holdback = new PriorityQueue<Entry>();
+    static final HashMap<String, Integer> emidMap;
+    int failure = -1;
+    static {
+        emidMap = new HashMap<String, Integer>();
+        emidMap.put("5554", 0);
+        emidMap.put("5556", 1);
+        emidMap.put("5558", 2);
+        emidMap.put("5560", 3);
+        emidMap.put("5562", 4);
+
+    }
+
+    List<Double> priorities = new ArrayList<Double>(Arrays.asList(0.1, 0.2, 0.3, 0.4, 0.5));
+    boolean[] hasFailed = new boolean[5];
+
 
     static final int SERVER_PORT = 10000;
-    int count =0;
+    int count = 0;
 
     ContentResolver contentProvider;
     Uri gUri;
+    /**
+     * ATTENTION: This was auto-generated to implement the App Indexing API.
+     * See https://g.co/AppIndexing/AndroidStudio for more information.
+     */
+    private GoogleApiClient client;
 
     private Uri buildUri(String scheme, String authority) {
         Uri.Builder uriBuilder = new Uri.Builder();
@@ -85,7 +112,11 @@ public class GroupMessengerActivity extends Activity {
              * http://developer.android.com/reference/android/os/AsyncTask.html
              */
             ServerSocket serverSocket = new ServerSocket(SERVER_PORT);
+
+
             new ServerTask().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, serverSocket);
+
+            //new DeliverTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, myPort);
         } catch (IOException e) {
             /*
              * Log is a good way to debug your code. LogCat prints out all the messages that
@@ -124,7 +155,7 @@ public class GroupMessengerActivity extends Activity {
          */
 
         contentProvider = getContentResolver();
-        gUri = buildUri("content","edu.buffalo.cse.cse486586.groupmessenger2.provider");
+        gUri = buildUri("content", "edu.buffalo.cse.cse486586.groupmessenger2.provider");
 
         final EditText editText = (EditText) findViewById(R.id.editText1);
 
@@ -139,7 +170,7 @@ public class GroupMessengerActivity extends Activity {
                      * (i.e., KeyEvent.KEYCODE_ENTER), then we display the string. Then we create
                      * an AsyncTask that sends the string to the remote AVD.
                      */
-                String msg = editText.getText().toString()+"\n";
+                String msg = editText.getText().toString() + "\n";
                 editText.setText(""); // This is one way to reset the input box.
                 TextView localTextView = (TextView) findViewById(R.id.textView1);
                 localTextView.append("\t" + msg); // This is one way to display a string.
@@ -162,6 +193,9 @@ public class GroupMessengerActivity extends Activity {
                 //return false;
             }
         });
+        // ATTENTION: This was auto-generated to implement the App Indexing API.
+        // See https://g.co/AppIndexing/AndroidStudio for more information.
+        client = new GoogleApiClient.Builder(this).addApi(AppIndex.API).build();
     }
 
     @Override
@@ -169,6 +203,42 @@ public class GroupMessengerActivity extends Activity {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.activity_group_messenger, menu);
         return true;
+    }
+
+    /**
+     * ATTENTION: This was auto-generated to implement the App Indexing API.
+     * See https://g.co/AppIndexing/AndroidStudio for more information.
+     */
+    public Action getIndexApiAction() {
+        Thing object = new Thing.Builder()
+                .setName("GroupMessenger Page") // TODO: Define a title for the content shown.
+                // TODO: Make sure this auto-generated URL is correct.
+                .setUrl(Uri.parse("http://[ENTER-YOUR-URL-HERE]"))
+                .build();
+        return new Action.Builder(Action.TYPE_VIEW)
+                .setObject(object)
+                .setActionStatus(Action.STATUS_TYPE_COMPLETED)
+                .build();
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+
+        // ATTENTION: This was auto-generated to implement the App Indexing API.
+        // See https://g.co/AppIndexing/AndroidStudio for more information.
+        client.connect();
+        AppIndex.AppIndexApi.start(client, getIndexApiAction());
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+
+        // ATTENTION: This was auto-generated to implement the App Indexing API.
+        // See https://g.co/AppIndexing/AndroidStudio for more information.
+        AppIndex.AppIndexApi.end(client, getIndexApiAction());
+        client.disconnect();
     }
 
     private class ServerTask extends AsyncTask<ServerSocket, String, String> {
@@ -179,11 +249,11 @@ public class GroupMessengerActivity extends Activity {
             BufferedReader reader;
             //serverSocket.toString();
 
-            String data="";
+            String data = "";
 
-            try{
+            try {
 
-                while(true){
+                while (true) {
                     Socket clientSocket = serverSocket.accept();
 
 
@@ -191,79 +261,186 @@ public class GroupMessengerActivity extends Activity {
                             new InputStreamReader(clientSocket.getInputStream()));
 
                     data = in.readLine();
-                   // Log.e(TAG,"Received Data: "+data );
+                    //Log.e(TAG,"Received Data: "+data );
                     DataOutputStream outStream = new DataOutputStream(clientSocket.getOutputStream());
 
+                    if(data!=null && data.startsWith("Failure")){
+                        int failedPid = Integer.parseInt(data.split("-")[1]);
+                        hasFailed[failedPid] = true;
+
+                        Log.e(TAG,"Notifying about failure:"+failedPid+" "+emID);
+
+                    }
+
+                    int checkFailure = -1;
+
+
+                    for (int i = 0; i < hasFailed.length; i++) {
+                        if (hasFailed[i])
+                            checkFailure = i;
+
+                    }
+
+                    if (checkFailure >= 0) {
+                        while (holdback.size() > 0) {
+                            int v = holdback.peek().getEmid();
+
+                            //Log.e(TAG,"Current value of "+v+" "+u.toString());
+
+
+                            Log.e(TAG, "Removing: " + checkFailure + "-" + v + "-" + holdback.peek().getValue());
+                            if (checkFailure == v) {
+                                Log.e(TAG, "REMOVED: " + checkFailure + "-" + v + "-" + holdback.peek().getValue());
+                                holdback.remove();
+                            }
+                            else {
+                                break;
+                            }
+                        }
+                    }
+
+
+                    while (holdback.size() > 0 && holdback.peek().getDeliverable()) {
+
+                        Entry h = holdback.remove();
+                        queue.add(h);
+
+                    }
 
 
 
 
-                    if(data!=null) {
+                    while (queue.size() > 0) {
 
-                        if(data.startsWith("AgreedID")){
+                        String values = "";
+
+                        Entry next = queue.remove();
+                        String finalM = next.getValue();
+                        double finalId = next.getKey();
+                        ContentValues cv = new ContentValues();
+
+
+                        cv.put("key", count);
+                        cv.put("value", finalM);
+
+                        Log.e(TAG, Integer.toString(count) + "-QueueSize:" + queue.size() + "-Seq:" + Double.toString(finalId) + "--" + finalM);
+                        count += 1;
+
+
+                        contentProvider.insert(gUri, cv);
+
+                        //outStream.writeBytes("Finished");
+
+
+                            publishProgress(finalM);
+
+                    }
+
+
+                    if (data != null) {
+
+                        if (data.startsWith("AgreedID")) {
                             //Log.e(TAG, "Checking:"+data);
                             String[] idSplit = data.split("-");
 
                             double agreedId = Double.parseDouble(idSplit[1]);
+
+
                             String finalMsg = idSplit[3];
                             String emId = idSplit[2];
 
+                            Log.e(TAG, "AgreedOn:" + agreedId + "-Msg:" + finalMsg);
+
                             Entry x = map.get(finalMsg);
+                            int senderId = x.getEmid();
                             holdback.remove(x);
 
-                            Entry e = new Entry(agreedId,finalMsg);
+                            Entry e = new Entry(agreedId, finalMsg,senderId);
                             e.setDeliverable();
                             holdback.add(e);
 
-                            Entry val = holdback.poll();
-                            if(val.getDeliverable()){
-                                holdback.remove(val);
+                            String l = "Holdback:";
+                            for (Entry y : holdback) {
+                                l += "-" + y.getKey() + "-status:" + y.getDeliverable() + "-msg:" + y.getValue();
+
+                            }
+                            l += "\n";
+                            Log.e(TAG, l);
+
+                            //int checkFailure = -1;
+                            /*
+                            for (int i = 0; i < hasFailed.length; i++) {
+                                if (hasFailed[i])
+                                    checkFailure = i;
+
+                            }
+
+                            if (checkFailure >= 0) {
+                                while (holdback.size() > 0) {
+                                    int v = holdback.peek().getEmid();
+
+                                    //Log.e(TAG,"Current value of "+v+" "+u.toString());
+
+
+                                    Log.e(TAG, "Removing: " + checkFailure + "-" + v + "-" + holdback.peek().getValue());
+                                    if (checkFailure == v) {
+                                        Log.e(TAG, "REMOVED: " + checkFailure + "-" + v + "-" + holdback.peek().getValue());
+                                        holdback.remove();
+                                    }
+                                    else
+                                        break;
+                                }
+                            }
+                            */
+                            while (holdback.peek() != null && holdback.peek().getDeliverable()) {
+                                Entry val = holdback.remove();
                                 queue.add(val);
                             }
 
-                            Entry next = queue.poll();
-                            ContentValues cv = new ContentValues();
-                            cv.put("key",count);
-                            cv.put("value",next.getValue());
-                            Log.e(TAG,Integer.toString(count) +"-QueueSize:"+queue.size()+"-Seq:"+ Double.toString(agreedId)+"--" + finalMsg);
-                            count+=1;
-                            contentProvider.insert(gUri,cv);
+                            String values = "";
+                            for (Entry q : queue) {
+                                values += "key:" + q.getKey() + "-value:" + q.getValue() + "||";
+                            }
+                            values += "\n";
+                            Log.e(TAG, values);
+
+                            //Log.e(TAG,"AddedToQueueQueueSize:"+queue.size()+"-AgreedId:"+Double.toString(agreedId));
                             int nxt = (int) Math.ceil(agreedId);
 
-                            max = Math.max(max,nxt);
-                            outStream.writeBytes("DONE");
-                            publishProgress(next.getValue());
+                            max = Math.max(max, nxt) + 1;
 
-                        }
-                       else {
+                            outStream.writeBytes("DONE");
+
+                        } else if (data.startsWith("ProposedId")) {
                             //;
                             //Log.e(TAG,"ServerReceived:"+data);
                             double proposedId = max;
                             max = max + 1;
                             String[] splitData = data.split("-");
-                            String emId = splitData[0];
-                            String m = splitData[1];
-                            double add =0;
-                            if(emId.equals("5554")){
-                                add = 0.2;
+                            String emId = splitData[1];
+                            String m = splitData[2];
+                            double add = 0;
+                            if (emId.equals("5554")) {
+                                add = priorities.get(0);
+                            } else if (emId.equals("5556")) {
+                                add = priorities.get(1);
+                            } else if (emId.equals("5558")) {
+                                add = priorities.get(2);
+                            } else if (emId.equals(("5560"))) {
+                                add = priorities.get(3);
+                            } else {
+                                add = priorities.get(4);
                             }
-                            else if(emId.equals("5556")){
-                                add = 0.3;
-                            }
-                            else if (emId.equals("5558")){
-                                add=0.4;
-                            }
-                            else if(emId.equals(("5560"))){
-                                add=0.5;
-                            }
-                            else{
-                                add = 0.6;
-                            }
-                            proposedId = proposedId+add;
-                            Entry e = new Entry(proposedId,m);
-                            map.put(m,e);
+                            proposedId = proposedId + add;
+
+                            int senderId = emidMap.get(emId);
+                            Log.e(TAG,m+"-"+emId+'-'+senderId+'-'+proposedId);
+                            Entry e = new Entry(proposedId, m,senderId);
+                            map.put(m, e);
                             holdback.add(e);
-                            String pId =  Double.toString(proposedId)+"-OK\n";
+
+
+                            String pId = Double.toString(proposedId) + "-OK\n";
                             outStream.writeBytes(pId);
 
                             //Log.e(TAG,pId);
@@ -274,16 +451,21 @@ public class GroupMessengerActivity extends Activity {
 
                         //count+=1;
 
-
+                        //if(finalM.length()>0)
+                        //    publishProgress(finalM);
                     }
                     clientSocket.close();
                 }
 
 
+            } catch (SocketTimeoutException e) {
+                Log.e(TAG, "ServerSide failure: " + emID + "--" + e);
+
             } catch (IOException e) {
+                Log.e(TAG, "ServerSide IO failure: " + emID + "--" + e);
                 e.printStackTrace();
             }
-            Log.e(TAG,data +" is logged");
+            // Log.e(TAG,data +" is logged");
 
             /*
              * TODO: Fill in your server code that receives messages and passes them
@@ -294,7 +476,7 @@ public class GroupMessengerActivity extends Activity {
             return data;
         }
 
-        protected void onProgressUpdate(String...strings) {
+        protected void onProgressUpdate(String... strings) {
             /*
              * The following code displays what is received in doInBackground().
              */
@@ -336,7 +518,6 @@ public class GroupMessengerActivity extends Activity {
      * an enter key press event.
      *
      * @author stevko
-     *
      */
     private class ClientTask extends AsyncTask<String, Void, Void> {
 
@@ -344,30 +525,34 @@ public class GroupMessengerActivity extends Activity {
         protected Void doInBackground(String... msgs) {
 
 
-            try {
-                String remotePort;
-                double agreedId=-1;
-                for(int i=0;i<portList.size();i++){
-                    //if(msgs[1].equals(portList.get(i)))
-                    //    continue;
+            //try {
+            String remotePort;
+            double agreedId = -1;
 
+            Log.e(TAG,"Message:"+msgs[0]);
+            for (int i = 0; i < portList.size(); i++) {
+                //if(msgs[1].equals(portList.get(i)))
+                //    continue;
+
+
+
+                try {
+                    if (hasFailed[i])
+                        continue;
                     remotePort = portList.get(i);
                     Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
                             Integer.parseInt(remotePort));
 
 
+                    //socket.setSoTimeout(500);
+
                     String msgToSend = msgs[0];
-                    //Log.e(TAG, msgToSend + remotePort+" - Sending Message");
                 /*
                  * TODO: Fill in your client code that sends out a message.
                  */
 
-                    //
-
-                    //PrintWriter outStream = new PrintWriter(socket.getOutputStream(), true);
                     DataOutputStream outStream = new DataOutputStream(socket.getOutputStream());
 
-                    //Log.e(TAG, msgToSend + remotePort+" - outStreamFine");
 
                     BufferedReader in = new BufferedReader(
                             new InputStreamReader(socket.getInputStream()));
@@ -377,7 +562,7 @@ public class GroupMessengerActivity extends Activity {
                     //if(in.readLine()=="OK")
 
 
-                    outStream.writeBytes(emID+"-"+msgToSend);
+                    outStream.writeBytes("ProposedId-" + emID + "-" + msgToSend);
 
                     //Log.e(TAG, msgToSend + remotePort+" - OutStream write fine");
                     outStream.flush();
@@ -387,51 +572,195 @@ public class GroupMessengerActivity extends Activity {
                     //Log.e(TAG, ack + remotePort+" - checking ACK");
                     if (ack.endsWith("OK")) {
                         double reading = Double.parseDouble(ack.split("-")[0]);
-                        if(reading>agreedId)
+                        if (reading > agreedId)
                             agreedId = reading;
                         //Log.e(TAG,Double.toString(agreedId)+"AgreedSoFar " + msgToSend);
 
                         socket.close();
                     }
-                }
+                } catch (Exception e) {
+                    Log.e(TAG, portList.get(i) + ":has Failed askingAndgetting Proposal" + e);
+                    hasFailed[i] = true;
+                    failure =i;
+                    continue;
 
-                for(int i=0;i<portList.size();i++){
+                }
+            }
+
+
+            for (int i = 0; i < portList.size(); i++) {
+
+                try {
+
+                    if (hasFailed[i])
+                        continue;
                     remotePort = portList.get(i);
                     Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
                             Integer.parseInt(remotePort));
 
+                    //socket.setSoTimeout(500);
                     String msgToSend = msgs[0];
-                    String msg ="AgreedID-"+Double.toString(agreedId)+"-"+emID+"-"+msgToSend;
+                    String msg = "AgreedID-" + Double.toString(agreedId) + "-" + emID + "-" + msgToSend;
 
-                    Log.e(TAG,msg);
+                    //Log.e(TAG,msg);
                     DataOutputStream outStream = new DataOutputStream(socket.getOutputStream());
-
 
 
                     BufferedReader in = new BufferedReader(
                             new InputStreamReader(socket.getInputStream()));
-                   // Log.e(TAG, "SendingMessage--"+msg);
+                    // Log.e(TAG, "SendingMessage--"+msg);
                     outStream.writeBytes(msg);
                     outStream.flush();
                     String ack = in.readLine();
-                    if(ack.equals("DONE")){
-                       // Log.e(TAG,"DONE");
+                    if (ack.equals("DONE")) {
+                        //Log.e(TAG,"DONE");
                         socket.close();
                     }
+                } catch (Exception e) {
+                    Log.e(TAG, portList.get(i) + ":has Failed Sending AgreedID " + e);
+                    hasFailed[i] = true;
+                    failure = i;
+                    continue;
                 }
+            }
+            try {
+                Thread.sleep(500);
 
-            } catch (UnknownHostException e) {
+            } catch (Exception e) {
+                Log.e(TAG, "Timer Exception: " + e);
+            }
+            //Log.e(TAG,"Sleep Finished: "+queue.size());
+            while (queue.size() > 0) {
+                for (int i = 0; i < portList.size(); i++) {
+
+                    try {
+
+                       // Log.e(TAG, "SendingMessage--"+portList.get(i));
+                        if (hasFailed[i])
+                            continue;
+                        remotePort = portList.get(i);
+                        Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
+                                Integer.parseInt(remotePort));
+
+                        //socket.setSoTimeout(500);
+                        DataOutputStream outStream = new DataOutputStream(socket.getOutputStream());
+
+
+                        BufferedReader in = new BufferedReader(
+                                new InputStreamReader(socket.getInputStream()));
+                        //String ack = in.readLine();
+
+                        outStream.writeBytes("ReadyToSend\n");
+                        outStream.flush();
+
+
+
+                    } catch (Exception e) {
+                        Log.e(TAG, portList.get(i) + ":has Failed ReadyToSend " + e);
+                        hasFailed[i] = true;
+                        failure = i;
+                        continue;
+                    }
+
+                }
+            }
+
+
+
+            if(failure>=0){
+                for (int i = 0; i < portList.size(); i++) {
+
+                    try {
+
+                        // Log.e(TAG, "SendingMessage--"+portList.get(i));
+                        if (hasFailed[i])
+                            continue;
+
+
+                        Log.e(TAG,"Sending failure notification: "+failure+" from"+emID+" to "+portList.get(i));
+                        remotePort = portList.get(i);
+                        Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
+                                Integer.parseInt(remotePort));
+
+                        //socket.setSoTimeout(500);
+                        DataOutputStream outStream = new DataOutputStream(socket.getOutputStream());
+
+
+                        BufferedReader in = new BufferedReader(
+                                new InputStreamReader(socket.getInputStream()));
+                        //String ack = in.readLine();
+
+                        outStream.writeBytes("Failure-"+failure +"\n");
+                        outStream.flush();
+
+
+                    } catch (Exception e) {
+                        Log.e(TAG, portList.get(i) + ":has Failed WTF " + e);
+                        hasFailed[i] = true;
+                        failure = i;
+                        continue;
+                    }
+
+                }
+            }
+            /*} catch (UnknownHostException e) {
                 Log.e(TAG, "ClientTask UnknownHostException");
+            } catch (SocketTimeoutException e){
+                Log.e(TAG,"The Socket timed out!!");
+            } catch (StreamCorruptedException e){
+                Log.e(TAG,"The stream has been corrupted");
             } catch (IOException e) {
                 Log.e(TAG, "ClientTask socket IOException");
-            }catch (Exception e){
-                Log.e(TAG,"some Exception");
-            }
+            } catch (Exception e){
+                Log.e(TAG,"Exception: "+e);
+            }*/
+
 
             return null;
         }
     }
 
+    /*
+    private class DeliverTask extends AsyncTask<String, Void, Void>{
+
+        @Override
+        protected Void doInBackground(String... params) {
+            try {
+                while (true) {
+
+
+                    if (queue.size() > 0) {
+                        String remotePort;
+                        for (int i = 0; i < portList.size(); i++) {
+                            remotePort = portList.get(i);
+                            Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
+                                    Integer.parseInt(remotePort));
+
+                            DataOutputStream outStream = new DataOutputStream(socket.getOutputStream());
+
+
+                            //BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+                            outStream.writeBytes("ReadyToSend\n");
+                            outStream.flush();
+
+
+                        }
+                    }
+                }
+
+                }catch(UnknownHostException e){
+                    Log.e(TAG, "ClientTask UnknownHostException");
+                }catch(IOException e){
+                    Log.e(TAG, "ClientTask socket IOException");
+                }catch(Exception e){
+                    Log.e(TAG, "some Exception");
+                }
+
+
+            return null;
+        }
+    }*/
 
 }
 
@@ -439,10 +768,12 @@ class Entry implements Comparable<Entry> {
     private double key;
     private String value;
     private boolean deliverable;
-    public Entry(double key, String value) {
+    private int emid;
+    public Entry(double key, String value,int emid) {
         this.key = key;
         this.value = value;
         this.deliverable = false;
+        this.emid = emid;
     }
 
     // getters
@@ -457,12 +788,24 @@ class Entry implements Comparable<Entry> {
         this.deliverable = true;
     }
 
+    public  int getEmid(){
+        return this.emid;
+    }
+
+
     public boolean getDeliverable(){
         return this.deliverable;
     }
     @Override
     public int compareTo(Entry other) {
-        int compare  = this.getKey()>other.getKey()?0:1;
-        return compare;
+
+        if(this.getKey()<other.getKey()){
+            return -1;
+        }
+        else if(this.getKey()>other.getKey()){
+            return 1;
+        }
+        return 0;
+
     }
 }
