@@ -50,7 +50,10 @@ public class GroupMessengerActivity extends Activity {
     static final String REMOTE_PORT2 = "11116";
     static final String REMOTE_PORT3 = "11120";
     static final String REMOTE_PORT4 = "11124";
+    int seqNo  =0;
     int max = 0;
+    boolean removal = false;
+    ArrayList<Entry> removalList = new ArrayList<Entry>();
     String emID = "";
     ArrayList<String> portList = new ArrayList<String>(Arrays.asList(REMOTE_PORT0, REMOTE_PORT1, REMOTE_PORT2, REMOTE_PORT3, REMOTE_PORT4));
     PriorityQueue<Entry> queue = new PriorityQueue<Entry>();
@@ -282,7 +285,7 @@ public class GroupMessengerActivity extends Activity {
                     }
 
                     if (checkFailure >= 0) {
-                        while (holdback.size() > 0) {
+                        /*while (holdback.size() > 0) {
                             int v = holdback.peek().getEmid();
 
                             //Log.e(TAG,"Current value of "+v+" "+u.toString());
@@ -296,45 +299,29 @@ public class GroupMessengerActivity extends Activity {
                             else {
                                 break;
                             }
+                        }*/
+
+                        Log.e(TAG, "Removing: " + checkFailure);
+                        for(Entry e:holdback){
+
+                            int v = e.getEmid();
+
+                            if(checkFailure==v){
+                                Log.e(TAG, "REMOVED: " + checkFailure + "-" + v + "-" + e.getValue());
+                                removalList.add(e);
+                                removal = true;
+                            }
                         }
-                    }
 
-
-                    while (holdback.size() > 0 && holdback.peek().getDeliverable()) {
-
-                        Entry h = holdback.remove();
-                        queue.add(h);
-
-                    }
-
-
-
-
-                    while (queue.size() > 0) {
-
-                        String values = "";
-
-                        Entry next = queue.remove();
-                        String finalM = next.getValue();
-                        double finalId = next.getKey();
-                        ContentValues cv = new ContentValues();
-
-
-                        cv.put("key", count);
-                        cv.put("value", finalM);
-
-                        Log.e(TAG, Integer.toString(count) + "-QueueSize:" + queue.size() + "-Seq:" + Double.toString(finalId) + "--" + finalM);
-                        count += 1;
-
-
-                        contentProvider.insert(gUri, cv);
-
-                        //outStream.writeBytes("Finished");
-
-
-                            publishProgress(finalM);
+                        if(removal){
+                            for(Entry z:removalList){
+                                holdback.remove(z);
+                            }
+                            removal = false;
+                        }
 
                     }
+
 
 
                     if (data != null) {
@@ -346,12 +333,13 @@ public class GroupMessengerActivity extends Activity {
                             double agreedId = Double.parseDouble(idSplit[1]);
 
 
-                            String finalMsg = idSplit[3];
+                            String finalMsgId = idSplit[3];
+                            String finalMsg = finalMsgId.split("_")[1];
                             String emId = idSplit[2];
 
                             Log.e(TAG, "AgreedOn:" + agreedId + "-Msg:" + finalMsg);
 
-                            Entry x = map.get(finalMsg);
+                            Entry x = map.get(finalMsgId);
                             int senderId = x.getEmid();
                             holdback.remove(x);
 
@@ -367,31 +355,7 @@ public class GroupMessengerActivity extends Activity {
                             l += "\n";
                             Log.e(TAG, l);
 
-                            //int checkFailure = -1;
-                            /*
-                            for (int i = 0; i < hasFailed.length; i++) {
-                                if (hasFailed[i])
-                                    checkFailure = i;
 
-                            }
-
-                            if (checkFailure >= 0) {
-                                while (holdback.size() > 0) {
-                                    int v = holdback.peek().getEmid();
-
-                                    //Log.e(TAG,"Current value of "+v+" "+u.toString());
-
-
-                                    Log.e(TAG, "Removing: " + checkFailure + "-" + v + "-" + holdback.peek().getValue());
-                                    if (checkFailure == v) {
-                                        Log.e(TAG, "REMOVED: " + checkFailure + "-" + v + "-" + holdback.peek().getValue());
-                                        holdback.remove();
-                                    }
-                                    else
-                                        break;
-                                }
-                            }
-                            */
                             while (holdback.peek() != null && holdback.peek().getDeliverable()) {
                                 Entry val = holdback.remove();
                                 queue.add(val);
@@ -418,7 +382,9 @@ public class GroupMessengerActivity extends Activity {
                             max = max + 1;
                             String[] splitData = data.split("-");
                             String emId = splitData[1];
-                            String m = splitData[2];
+                            String mId = splitData[2];
+                            String m = mId.split("_")[1];
+
                             double add = 0;
                             if (emId.equals("5554")) {
                                 add = priorities.get(0);
@@ -436,7 +402,8 @@ public class GroupMessengerActivity extends Activity {
                             int senderId = emidMap.get(emId);
                             Log.e(TAG,m+"-"+emId+'-'+senderId+'-'+proposedId);
                             Entry e = new Entry(proposedId, m,senderId);
-                            map.put(m, e);
+                            map.put(mId, e);
+
                             holdback.add(e);
 
 
@@ -446,6 +413,45 @@ public class GroupMessengerActivity extends Activity {
                             //Log.e(TAG,pId);
                         }
 
+
+
+
+
+                        while (holdback.size() > 0 && holdback.peek().getDeliverable()) {
+
+                            Entry h = holdback.remove();
+                            queue.add(h);
+
+                        }
+
+
+
+
+                        while (queue.size() > 0) {
+
+                            String values = "";
+
+                            Entry next = queue.remove();
+                            String finalM = next.getValue();
+                            double finalId = next.getKey();
+                            ContentValues cv = new ContentValues();
+
+
+                            cv.put("key", count);
+                            cv.put("value", finalM);
+
+                            Log.e(TAG, Integer.toString(count) + "-QueueSize:" + queue.size() + "-Seq:" + Double.toString(finalId) + "--" + finalM);
+                            count += 1;
+
+
+                            contentProvider.insert(gUri, cv);
+
+                            //outStream.writeBytes("Finished");
+
+
+                            publishProgress(finalM);
+
+                        }
 
                         //contentProvider.
 
@@ -528,8 +534,10 @@ public class GroupMessengerActivity extends Activity {
             //try {
             String remotePort;
             double agreedId = -1;
-
+            seqNo +=1;
             Log.e(TAG,"Message:"+msgs[0]);
+            String msgToSend = msgs[0];
+            msgToSend = emID + seqNo + "_" + msgToSend;
             for (int i = 0; i < portList.size(); i++) {
                 //if(msgs[1].equals(portList.get(i)))
                 //    continue;
@@ -546,8 +554,8 @@ public class GroupMessengerActivity extends Activity {
 
                     //socket.setSoTimeout(500);
 
-                    String msgToSend = msgs[0];
-                /*
+
+                    /*
                  * TODO: Fill in your client code that sends out a message.
                  */
 
@@ -599,7 +607,7 @@ public class GroupMessengerActivity extends Activity {
                             Integer.parseInt(remotePort));
 
                     //socket.setSoTimeout(500);
-                    String msgToSend = msgs[0];
+                    //String msgToSend = msgs[0];
                     String msg = "AgreedID-" + Double.toString(agreedId) + "-" + emID + "-" + msgToSend;
 
                     //Log.e(TAG,msg);
@@ -623,14 +631,17 @@ public class GroupMessengerActivity extends Activity {
                     continue;
                 }
             }
+
+            /*
             try {
                 Thread.sleep(500);
 
             } catch (Exception e) {
                 Log.e(TAG, "Timer Exception: " + e);
             }
+            */
             //Log.e(TAG,"Sleep Finished: "+queue.size());
-            while (queue.size() > 0) {
+            /*while (queue.size() > 0) {
                 for (int i = 0; i < portList.size(); i++) {
 
                     try {
@@ -665,7 +676,7 @@ public class GroupMessengerActivity extends Activity {
                 }
             }
 
-
+            */
 
             if(failure>=0){
                 for (int i = 0; i < portList.size(); i++) {
